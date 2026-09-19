@@ -1,6 +1,7 @@
 /** 請求書画面：一覧 → 明細確認 → PDFプレビュー → 発行 */
 
 import { yen, esc, ymd, el, api } from './common.js';
+import { qtyText } from './format.js';
 
 const state = { data: null, period: '', selectedId: null, detail: null, busy: false };
 
@@ -24,7 +25,7 @@ function renderDetail(host, root) {
   const itemRows = d.items.length
     ? d.items.map((it) => `<tr>
         <td>${esc(it.name)}</td>
-        <td>${Number(it.quantity ?? 0).toLocaleString('ja-JP')}</td>
+        <td>${esc(qtyText(it))}</td>
         <td>${yen(it.unitPrice)}</td>
         <td>${yen(it.amount)}</td>
       </tr>`).join('')
@@ -45,6 +46,7 @@ function renderDetail(host, root) {
       </table>
       <div class="actions">
         <button class="btn" id="btnPreview">PDFプレビュー</button>
+        <button class="btn" id="btnOpen">別タブで開く</button>
         <button class="btn primary" id="btnIssue">${iv.status === '下書き' ? '発行する' : '再発行する'}</button>
         <span id="issueNote" class="sub"></span>
       </div>
@@ -63,9 +65,29 @@ function renderDetail(host, root) {
     note.textContent = '発行済みです。再発行するとNotionのPDFが差し替わります';
   }
 
+  const pdfUrl = () => `/api/issue-invoice?period=${encodeURIComponent(state.period)}&id=${encodeURIComponent(iv.id)}`;
+
   panel.querySelector('#btnPreview').onclick = () => {
-    const url = `/api/issue-invoice?period=${encodeURIComponent(state.period)}&id=${encodeURIComponent(iv.id)}`;
-    previewHost.innerHTML = `<iframe class="preview" src="${url}" title="請求書プレビュー"></iframe>`;
+    previewHost.innerHTML = `<iframe class="preview" src="${pdfUrl()}" title="請求書プレビュー"></iframe>`;
+  };
+
+  // iframe内のPDFを表示できない環境（iOS Safariなど）向けの逃げ道。印刷時にも使いやすい。
+  // 一度取得してBlobにしてから開く。
+  panel.querySelector('#btnOpen').onclick = async () => {
+    const btn = panel.querySelector('#btnOpen');
+    btn.disabled = true;
+    try {
+      const res = await fetch(pdfUrl());
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const url = URL.createObjectURL(await res.blob());
+      window.open(url, '_blank');
+      // 開いたタブがBlobを読み終えるまで解放を待つ
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      note.innerHTML = `<span class="msg err" style="padding:2px 8px">PDFを開けませんでした: ${esc(err.message)}</span>`;
+    } finally {
+      btn.disabled = false;
+    }
   };
 
   btnIssue.onclick = async () => {
