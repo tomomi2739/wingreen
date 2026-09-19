@@ -1,0 +1,186 @@
+/* WinGreen 会計システム 共通スタイル。色はロゴのティール(#40B0B0系)を基準に組み立てている。 */
+
+:root {
+  color-scheme: light;
+  --plane:          #f7f9f9;
+  --surface-1:      #fcfdfd;
+  --text-primary:   #0b0f0f;
+  --text-secondary: #4e5454;
+  --text-muted:     #858d8d;
+  --grid:           #e0e6e6;
+  --axis:           #c2cbcb;
+  --border:         rgba(11,15,15,0.10);
+
+  --brand:          #0f8f8f;  /* ロゴ由来。見出し・操作要素に使う */
+  --brand-strong:   #0b7373;
+  --on-brand:       #ffffff;  /* ブランド色の面に載せる文字色 */
+  --brand-tint:     #eaf5f5;  /* 帯・ホバーの淡い面 */
+
+  --series-1:       #0f9a9a;  /* 売上 */
+  --series-2:       #eb6834;  /* 経費 */
+  --series-3:       #4a3aa7;  /* 営業利益 */
+
+  --good:           #0ca30c;
+  --warning:        #fab219;
+  --critical:       #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --plane:          #0b0d0d;
+    --surface-1:      #191b1b;
+    --text-primary:   #ffffff;
+    --text-secondary: #bdc5c5;
+    --text-muted:     #858d8d;
+    --grid:           #2a2e2e;
+    --axis:           #373c3c;
+    --border:         rgba(255,255,255,0.10);
+
+    --brand:          #3ec2bf;
+    --brand-strong:   #5ed3d0;
+    /* ダークのブランド色は明るいので、白文字だとコントラストが足りない */
+    --on-brand:       #0b0d0d;
+    --brand-tint:     #17302f;
+
+    --series-1:       #2aa8a6;
+    --series-2:       #d95926;
+    --series-3:       #9085e9;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.wrap { max-width: 1240px; margin: 0 auto; padding: 22px 24px 64px; }
+
+/* ---- ヘッダーとタブ ---- */
+.top { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; }
+.logo {
+  width: 32px; height: 32px; border-radius: 9px; background: #fff;
+  padding: 2px; flex: none; box-shadow: 0 0 0 1px var(--border);
+}
+h1 { font-size: 17px; margin: 0; letter-spacing: .01em; }
+.sub { color: var(--text-muted); font-size: 12.5px; }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+.tabs button {
+  font: inherit; background: none; border: 0; cursor: pointer;
+  padding: 9px 16px; color: var(--text-secondary);
+  border-bottom: 2px solid transparent; margin-bottom: -1px; border-radius: 6px 6px 0 0;
+}
+.tabs button:hover { color: var(--text-primary); background: var(--brand-tint); }
+.tabs button[aria-selected="true"] {
+  color: var(--brand); border-bottom-color: var(--brand); font-weight: 600;
+}
+
+/* ---- フィルタ ---- */
+.filters {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
+}
+.filters label { color: var(--text-secondary); font-size: 13px; }
+select, button.btn {
+  font: inherit; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; cursor: pointer;
+}
+select:focus-visible, button:focus-visible, tr:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: 1px;
+}
+button.btn:hover { border-color: var(--brand); }
+button.btn.primary {
+  background: var(--brand); color: var(--on-brand); border-color: var(--brand); font-weight: 600;
+}
+button.btn.primary:hover { background: var(--brand-strong); border-color: var(--brand-strong); }
+button.btn[disabled] { opacity: .45; cursor: default; }
+button.btn.primary[disabled]:hover { background: var(--brand); }
+
+.seg { display: flex; flex-wrap: wrap; gap: 2px; background: var(--surface-1);
+       border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
+.seg button { border: 0; background: transparent; border-radius: 7px; padding: 5px 11px;
+              color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums;
+              font-family: inherit; cursor: pointer; }
+.seg button:hover { background: var(--brand-tint); }
+.seg button[aria-pressed="true"] { background: var(--brand); color: var(--on-brand); font-weight: 600; }
+.seg button.empty { color: var(--text-muted); opacity: .55; }
+.right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+/* ---- タイル ---- */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.tile {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 12px; padding: 15px 17px; border-top: 2px solid var(--brand);
+}
+.tile .k { color: var(--text-secondary); font-size: 12.5px; }
+.tile .v { font-size: 26px; font-weight: 600; letter-spacing: -.01em; margin-top: 2px; }
+.tile .n { color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.neg { color: var(--critical); }
+
+/* ---- パネル ---- */
+.panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+         padding: 17px 20px 14px; margin-bottom: 18px; }
+.panel h2 {
+  font-size: 13.5px; margin: 0 0 2px; font-weight: 600;
+  padding-left: 10px; border-left: 3px solid var(--brand);
+}
+.panel .note { color: var(--text-muted); font-size: 12px; margin: 4px 0 12px; padding-left: 13px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; padding-left: 13px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12.5px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+/* ---- グラフ ---- */
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+.grid-line { stroke: var(--grid); stroke-width: 1; }
+.axis-line { stroke: var(--axis); stroke-width: 1; }
+.tick { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.cat  { fill: var(--text-secondary); font-size: 12px; }
+.val  { fill: var(--text-secondary); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.hit  { fill: transparent; }
+
+/* ---- 表 ---- */
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--border); font-size: 13px; }
+th:first-child, td:first-child { text-align: left; font-variant-numeric: normal; }
+thead th { color: var(--text-secondary); font-weight: 600; font-size: 12px; background: var(--brand-tint); }
+thead th:first-child { border-radius: 6px 0 0 6px; }
+thead th:last-child { border-radius: 0 6px 6px 0; }
+tbody tr:hover { background: var(--brand-tint); }
+tfoot td { font-weight: 600; border-top: 1px solid var(--axis); border-bottom: 0; }
+.zero td { color: var(--text-muted); }
+tr.clickable { cursor: pointer; }
+tr.selected { background: var(--brand-tint); box-shadow: inset 3px 0 0 var(--brand); }
+
+/* ---- 状態バッジ ---- */
+.badge {
+  display: inline-block; padding: 1px 9px; border-radius: 999px;
+  font-size: 11.5px; border: 1px solid var(--border); color: var(--text-secondary);
+}
+.badge.issued { color: var(--brand); border-color: var(--brand); background: var(--brand-tint); }
+.badge.paid   { color: #ffffff; background: var(--good); border-color: var(--good); }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 7px; vertical-align: -1px; }
+.statusbar { display: flex; gap: 2px; height: 12px; margin: 4px 0 14px; }
+.statusbar > i { border-radius: 3px; display: block; }
+td.status-cell { text-align: left; }
+
+/* ---- その他 ---- */
+#tip {
+  position: fixed; pointer-events: none; opacity: 0; transition: opacity .1s;
+  background: var(--surface-1); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px;
+  font-size: 12.5px; line-height: 1.5; box-shadow: 0 6px 20px rgba(0,0,0,.16);
+  font-variant-numeric: tabular-nums; z-index: 10; white-space: nowrap;
+}
+.msg { padding: 14px 16px; border-radius: 10px; border: 1px solid var(--border);
+       background: var(--surface-1); color: var(--text-secondary); }
+.msg.err { color: var(--critical); border-color: var(--critical); }
+.msg.ok  { color: var(--brand); border-color: var(--brand); background: var(--brand-tint); }
+.preview { width: 100%; height: 760px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.actions { display: flex; gap: 10px; align-items: center; margin: 14px 0 4px; flex-wrap: wrap; }
+.hidden { display: none; }
