@@ -1,0 +1,16 @@
+# 環境変数（トークンを含む。絶対にコミットしない）
+.env
+.env.local
+.env.*.local
+
+# 依存パッケージ
+node_modules/
+
+# Vercel
+.vercel/
+
+# Notionスキーマのダンプ（確認用の一時出力。正式なDB IDは config/periods.json で管理）
+notion-schema.json
+
+# OS
+.DS_Store

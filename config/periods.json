@@ -1,0 +1,25 @@
+{
+  "_comment": "WinGreenの会計期とNotion DBの対応表。新しい期が始まったら periods に1ブロック追記するだけでよく、コード修正は不要。マスタ系は期をまたいで共通のため masters に置く。",
+
+  "masters": {
+    "accounts":     { "label": "勘定科目マスタ WG", "id": "af8ed1fe-87e3-8346-b373-01e43b6fb853" },
+    "subAccounts":  { "label": "補助科目マスタ WG", "id": "3d2ed1fe-87e3-80e6-8725-c715b37c1ba1" },
+    "payees":       { "label": "支払先マスタ WG",   "id": "3d2ed1fe-87e3-808d-8495-fdb1d9dc15b0" },
+    "clients":      { "label": "取引先マスタ WG",   "id": "3d2ed1fe-87e3-80f3-82a8-fd598f92b1c4" },
+    "fixedCosts":   { "label": "固定費マスタ WG",   "id": "3d2ed1fe-87e3-80e8-87b3-d3175275ca22" }
+  },
+
+  "periods": [
+    {
+      "no": 1,
+      "label": "1期",
+      "start": "2026-08-10",
+      "end": "2027-03-31",
+      "databases": {
+        "journal":     { "label": "仕訳明細　WG1期", "id": "3d2ed1fe-87e3-80e1-a75c-f97bc1ae1325" },
+        "invoice":     { "label": "請求書DB WG1期", "id": "3d2ed1fe-87e3-8013-a236-f5477fcb6f29" },
+        "invoiceItem": { "label": "請求書明細 WG1期", "id": "3d2ed1fe-87e3-803e-a421-fdfbb10dd2c3" }
+      }
+    }
+  ]
+}
