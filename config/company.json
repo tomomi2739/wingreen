@@ -1,23 +1,10 @@
 {
-  "_comment": "請求書に印字する自社情報。インボイス登録番号は申請中のため空欄。取得でき次第 invoiceRegistrationNumber に \"T\" + 13桁を記入すれば、請求書の表示が自動で切り替わる。",
+  "_comment": "請求書に印字する自社情報のうち、登記簿等で公開済みの情報だけをここに置く。口座番号・インボイス登録番号・連絡先は公開リポジトリに載せないため、環境変数で渡す（lib/company.mjs を参照）。",
 
   "name": "合同会社WinGreen",
   "representative": "又多 風緑",
   "representativeTitle": "代表社員",
-  "postalCode": "",
   "address": "東京都港区北青山1丁目3-3 三橋ビル3階",
-  "tel": "",
-  "email": "",
-
-  "invoiceRegistrationNumber": "",
-
-  "bank": {
-    "name": "",
-    "branch": "",
-    "accountType": "",
-    "accountNumber": "",
-    "accountHolder": ""
-  },
 
   "logo": "assets/logo.png",
   "taxRate": 0.1,
