@@ -114,11 +114,21 @@ function render(root) {
   root.append(el(`
     <div class="filters">
       <label for="invPeriodSel">会計期</label>
-      <select id="invPeriodSel">
-        <option value="${d.period.no}">${esc(d.period.label)}</option>
-      </select>
+      <select id="invPeriodSel">${
+        (d.period.available ?? [{ no: d.period.no, label: d.period.label }])
+          .map((p) => `<option value="${p.no}"${p.no === d.period.no ? ' selected' : ''}>${esc(p.label)}</option>`)
+          .join('')
+      }</select>
       <span class="sub">${d.invoices.length}件</span>
     </div>`));
+
+  root.querySelector('#invPeriodSel').onchange = (e) => {
+    state.period = e.target.value;
+    state.selectedId = null;
+    state.detail = null;
+    state.data = null;
+    load(root);
+  };
 
   const list = el(`
     <div class="panel"><h2>請求書一覧</h2>
