@@ -17,6 +17,7 @@
 
   <nav class="tabs" role="tablist">
     <button role="tab" id="tab-report"   aria-selected="true"  aria-controls="view">月次レポート</button>
+    <button role="tab" id="tab-journal"  aria-selected="false" aria-controls="view">仕訳明細</button>
     <button role="tab" id="tab-invoices" aria-selected="false" aria-controls="view">請求書</button>
   </nav>
 
@@ -25,11 +26,13 @@
 
 <script type="module">
 import * as report from './report.js';
+import * as journal from './journal.js';
 import * as invoices from './invoices.js';
 
 const view = document.getElementById('view');
 const tabs = {
   report:   { btn: document.getElementById('tab-report'),   mod: report },
+  journal:  { btn: document.getElementById('tab-journal'),  mod: journal },
   invoices: { btn: document.getElementById('tab-invoices'), mod: invoices },
 };
 

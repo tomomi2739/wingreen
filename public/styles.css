@@ -148,6 +148,8 @@ svg { display: block; width: 100%; height: auto; overflow: visible; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--border); font-size: 13px; }
 th:first-child, td:first-child { text-align: left; font-variant-numeric: normal; }
+/* テキストの列。見出しとデータで揃え方を一致させる */
+th.t-left, td.t-left { text-align: left; font-variant-numeric: normal; }
 thead th { color: var(--text-secondary); font-weight: 600; font-size: 12px; background: var(--brand-tint); }
 thead th:first-child { border-radius: 6px 0 0 6px; }
 thead th:last-child { border-radius: 0 6px 6px 0; }
@@ -184,3 +186,46 @@ td.status-cell { text-align: left; }
 .preview { width: 100%; height: 760px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .actions { display: flex; gap: 10px; align-items: center; margin: 14px 0 4px; flex-wrap: wrap; }
 .hidden { display: none; }
+
+/* ---- 仕訳明細 ---- */
+.search { min-width: 200px; }
+input[type="search"], input[type="text"] {
+  font: inherit; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px;
+}
+input:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+/* 税理士が最初に確認したくなる項目。押すとその条件で絞り込む */
+.attention { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.attention button {
+  font: inherit; font-size: 12.5px; cursor: pointer;
+  border: 1px solid var(--warning); background: transparent; color: var(--text-primary);
+  border-radius: 999px; padding: 3px 12px;
+}
+.attention button:hover { background: color-mix(in srgb, var(--warning) 14%, transparent); }
+.attention button.clear { border-color: var(--border); color: var(--text-secondary); }
+.attention .none { color: var(--text-muted); font-size: 12.5px; }
+
+/* 貸借の科目セル：勘定科目を主、補助科目を下に小さく */
+td.entry { text-align: left; line-height: 1.35; }
+td.entry .acc { display: block; }
+td.entry .sub2 { display: block; color: var(--text-muted); font-size: 11.5px; }
+.col-debit  { box-shadow: inset 2px 0 0 var(--brand-tint); }
+.col-credit { box-shadow: inset 2px 0 0 var(--brand-tint); }
+
+.warnchip {
+  display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px;
+  border: 1px solid var(--warning); color: var(--text-secondary);
+}
+.summary {
+  display: flex; gap: 22px; flex-wrap: wrap; align-items: baseline;
+  padding: 10px 13px; margin-bottom: 14px;
+  background: var(--brand-tint); border-radius: 10px; font-size: 13px;
+}
+.summary b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.summary span { color: var(--text-secondary); }
+
+dl.detail { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 4px 0 0; }
+dl.detail dt { color: var(--text-secondary); font-size: 12.5px; }
+dl.detail dd { margin: 0; font-size: 13px; }
+dl.detail a { color: var(--brand); }

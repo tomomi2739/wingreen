@@ -157,8 +157,8 @@ function render(root) {
       <p class="note">行を選ぶと明細とPDFプレビューが開きます</p>
       <table>
         <thead><tr>
-          <th>番号</th><th>件名</th><th>取引先</th><th>発行日</th><th>支払期日</th>
-          <th>合計（税込）</th><th>ステータス</th><th>PDF</th>
+          <th>番号</th><th class="t-left">件名</th><th class="t-left">取引先</th><th>発行日</th><th>支払期日</th>
+          <th>合計（税込）</th><th class="t-left">ステータス</th><th class="t-left">PDF</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -174,13 +174,13 @@ function render(root) {
   for (const iv of d.invoices) {
     const tr = el(`<tr class="clickable${iv.id === state.selectedId ? ' selected' : ''}" tabindex="0">
       <td>${esc(iv.number ?? '')}</td>
-      <td>${esc(iv.subject || '(件名未設定)')}</td>
-      <td>${esc(iv.clientName || '—')}</td>
+      <td class="t-left">${esc(iv.subject || '(件名未設定)')}</td>
+      <td class="t-left">${esc(iv.clientName || '—')}</td>
       <td>${ymd(iv.issueDate)}</td>
       <td>${ymd(iv.dueDate)}</td>
       <td>${yen(iv.total)}</td>
-      <td style="text-align:right">${statusBadge(iv.status)}</td>
-      <td>${iv.hasPdf ? 'あり' : '—'}</td>
+      <td class="t-left">${statusBadge(iv.status)}</td>
+      <td class="t-left">${iv.hasPdf ? 'あり' : '—'}</td>
     </tr>`);
     const open = () => {
       tbody.querySelectorAll('tr').forEach((r) => r.classList.remove('selected'));
