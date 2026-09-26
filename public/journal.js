@@ -171,9 +171,9 @@ function render(root) {
     attn.append(el('<span class="none">要確認の仕訳はありません</span>'));
   } else {
     for (const [key, n] of hits) {
-      const b = el(`<button aria-pressed="${state.attention === key}">${ATTENTION_LABEL[key][0]} ${n}件</button>`);
-      b.onclick = () => { state.attention = state.attention === key ? '' : key; render(root); };
-      if (state.attention === key) b.style.background = 'color-mix(in srgb, var(--warning) 22%, transparent)';
+      const on = state.attention === key;
+      const b = el(`<button class="${on ? 'on' : ''}" aria-pressed="${on}">${ATTENTION_LABEL[key][0]} ${n}件</button>`);
+      b.onclick = () => { state.attention = on ? '' : key; render(root); };
       attn.append(b);
     }
     if (state.attention) {
@@ -190,14 +190,37 @@ function render(root) {
   }), { gross: 0, net: 0, tax: 0 });
 
   const scopeLabel = state.month === 'all' ? `${d.period.label}全体` : `${state.month.replace('-', '年')}月`;
-  root.append(el(`
-    <div class="summary">
+
+  const active = [
+    state.attention && ATTENTION_LABEL[state.attention][0],
+    state.account && `勘定科目: ${state.account}`,
+    state.taxCategory && `税区分: ${state.taxCategory}`,
+    state.status && `承認: ${state.status}`,
+    state.query.trim() && `検索: ${state.query.trim()}`,
+  ].filter(Boolean);
+
+  const summary = el(`
+    <div class="summary${active.length ? ' filtered' : ''}">
       <span>${esc(scopeLabel)}</span>
+      ${active.length
+        ? `<span class="filterinfo">絞り込み中: ${esc(active.join(' / '))}</span>`
+        : ''}
       <span>表示 <b>${rows.length}</b> 件 / 全 ${d.rows.length} 件</span>
       <span>税込 <b>${yen(sum.gross)}</b></span>
       <span>税抜 <b>${yen(sum.net)}</b></span>
       <span>消費税 <b>${yen(sum.tax)}</b></span>
-    </div>`));
+      ${active.length ? '<span class="right"><button class="btn" id="jReset">すべての絞り込みを解除</button></span>' : ''}
+    </div>`);
+  root.append(summary);
+
+  summary.querySelector('#jReset')?.addEventListener('click', () => {
+    state.attention = '';
+    state.account = '';
+    state.taxCategory = '';
+    state.status = '';
+    state.query = '';
+    render(root);
+  });
 
   // 絞り込み中に「1期全体」というファイル名で渡すと全件だと誤解されるため、状態を名前に残す
   const filtered = Boolean(state.account || state.taxCategory || state.status || state.query.trim() || state.attention);

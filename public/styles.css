@@ -204,6 +204,12 @@ input:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 }
 .attention button:hover { background: color-mix(in srgb, var(--warning) 14%, transparent); }
 .attention button.clear { border-color: var(--border); color: var(--text-secondary); }
+/* 選択中は塗りつぶして、絞り込みが効いていることを一目で分かるようにする */
+.attention button.on {
+  background: var(--warning); border-color: var(--warning);
+  color: #0b0d0d; font-weight: 600;
+}
+.attention button.on:hover { background: var(--warning); }
 .attention .none { color: var(--text-muted); font-size: 12.5px; }
 
 /* 貸借の科目セル：勘定科目を主、補助科目を下に小さく */
@@ -223,6 +229,9 @@ td.entry .sub2 { display: block; color: var(--text-muted); font-size: 11.5px; }
   background: var(--brand-tint); border-radius: 10px; font-size: 13px;
 }
 .summary b { font-size: 15px; font-variant-numeric: tabular-nums; }
+/* 絞り込み中は帯の色を変え、条件を文字で書く */
+.summary.filtered { background: color-mix(in srgb, var(--warning) 20%, transparent); }
+.summary .filterinfo { color: var(--text-primary); font-weight: 600; }
 .summary span { color: var(--text-secondary); }
 
 dl.detail { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 4px 0 0; }
