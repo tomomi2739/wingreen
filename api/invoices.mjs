@@ -20,17 +20,6 @@ export default async function handler(req, res) {
 
     res.setHeader('Cache-Control', 'no-store');
 
-    // 一時的な診断。環境変数が関数に届いているかを、値を出さずに確認する。
-    if (req.query.diag === '1') {
-      const keys = Object.keys(process.env).filter((k) => k.startsWith('WG_')).sort();
-      return res.status(200).json({
-        runtime: process.version,
-        vercelEnv: process.env.VERCEL_ENV ?? '(なし)',
-        wgKeys: keys.map((k) => ({ key: k, length: (process.env[k] ?? '').length })),
-        notionTokenSet: Boolean(process.env.NOTION_TOKEN_WG),
-      });
-    }
-
     if (!req.query.id) {
       return res.status(200).json({ period: meta, invoices: await listInvoices(period.no) });
     }
