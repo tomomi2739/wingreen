@@ -107,7 +107,11 @@ function renderDetail(host, root) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      note.innerHTML = `<span class="msg ok" style="padding:2px 8px">発行しました（${esc(json.filename)}）</span>`;
+      // フォントに無い文字は空白で印字されてしまうため、発行後に必ず知らせる
+      const missing = json.missingChars?.length
+        ? `<span class="msg err" style="padding:2px 8px">PDFに出せない文字があります: ${esc(json.missingChars.join(' '))}</span>`
+        : '';
+      note.innerHTML = `<span class="msg ok" style="padding:2px 8px">発行しました（${esc(json.filename)}）</span>${missing}`;
       await load(root);                               // 一覧とステータスを取り直す
     } catch (err) {
       note.innerHTML = `<span class="msg err" style="padding:2px 8px">発行に失敗しました: ${esc(err.message)}</span>`;

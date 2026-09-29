@@ -33,7 +33,10 @@ export default async function handler(req, res) {
     if (!query.id) return res.status(400).json({ error: '請求書のid が指定されていません' });
 
     const data = await loadInvoice(period.no, query.id);
-    const bytes = await buildInvoicePdf({ ...data, logoBytes: readLogo() });
+    const { bytes, missingChars } = await buildInvoicePdf({ ...data, logoBytes: readLogo() });
+    if (missingChars.length) {
+      console.warn(`フォントに無い文字が含まれています: ${missingChars.join('')}`);
+    }
 
     const filename = `${safeName(data.invoice.number || 'invoice')}_${safeName(data.invoice.clientName || '請求書')}.pdf`;
 
@@ -42,6 +45,7 @@ export default async function handler(req, res) {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(filename)}`);
       res.setHeader('Cache-Control', 'no-store');
+      if (missingChars.length) res.setHeader('X-Missing-Chars', encodeURIComponent(missingChars.join('')));
       return res.status(200).send(Buffer.from(bytes));
     }
 
@@ -66,6 +70,7 @@ export default async function handler(req, res) {
       filename,
       bytes: bytes.length,
       attachedTo: data.invoice.id,
+      missingChars,
     });
   } catch (err) {
     res.status(err.status === 404 ? 404 : 500).json({ error: err.message });
