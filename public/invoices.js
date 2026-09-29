@@ -107,11 +107,14 @@ function renderDetail(host, root) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      // フォントに無い文字は空白で印字されてしまうため、発行後に必ず知らせる
+      // 文字の問題は見た目で気づきにくいので、発行後に必ず知らせる
       const missing = json.missingChars?.length
         ? `<span class="msg err" style="padding:2px 8px">PDFに出せない文字があります: ${esc(json.missingChars.join(' '))}</span>`
         : '';
-      note.innerHTML = `<span class="msg ok" style="padding:2px 8px">発行しました（${esc(json.filename)}）</span>${missing}`;
+      const normalized = json.normalizedChars?.length
+        ? `<span class="msg" style="padding:2px 8px">見た目が同じ別文字を補正しました（${esc(json.normalizedChars.join(' '))}）。Notion側も直すことを勧めます</span>`
+        : '';
+      note.innerHTML = `<span class="msg ok" style="padding:2px 8px">発行しました（${esc(json.filename)}）</span>${missing}${normalized}`;
       await load(root);                               // 一覧とステータスを取り直す
     } catch (err) {
       note.innerHTML = `<span class="msg err" style="padding:2px 8px">発行に失敗しました: ${esc(err.message)}</span>`;
