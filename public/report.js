@@ -4,6 +4,18 @@ import { yen, esc, el, svgEl, hoverable, barPath, niceStep, api } from './common
 
 const state = { data: null, month: 'total', statusFilter: 'all', period: '' };
 
+// 債権・債務の見出しと、増減をどう呼ぶか。科目ごとに意味が違うので言葉を変える。
+const BALANCE_LABELS = {
+  '売掛金':     { title: '売掛金',     inc: '発生（請求）', dec: '回収',   bal: '未回収残高' },
+  '未収入金':   { title: '未収入金',   inc: '発生',         dec: '回収',   bal: '未回収残高' },
+  '未払金':     { title: '未払金',     inc: '発生',         dec: '支払',   bal: '未払残高' },
+  '買掛金':     { title: '買掛金',     inc: '発生',         dec: '支払',   bal: '未払残高' },
+  '預り金':     { title: '預り金',     inc: '預かり',       dec: '納付',   bal: '残高' },
+  '役員借入金': { title: '役員借入金', inc: '立替の発生',   dec: '精算',   bal: '未精算残高' },
+};
+// 画面に大きく出す科目（この順で並べる）。それ以外は下の一覧にまとめる。
+const FEATURED = ['売掛金', '未払金', '役員借入金'];
+
 // ステータスの表示色。名前が必ず隣にあるので、色だけで意味を運ばせない。
 const STATUS_COLOR = {
   '承認':   'var(--good)',
@@ -143,6 +155,112 @@ function breakdownChart(entries, color, emptyText) {
   return svg;
 }
 
+/* ---- 債権・債務の状況 ---- */
+
+/** 選択中の期間ぶんだけを取り出す。期累計なら全月を合算する。 */
+function scopeBalance(b) {
+  const target = state.month === 'total' ? b.series : b.series.filter((x) => x.month === state.month);
+  if (!target.length) return null;
+
+  const sum = target.reduce((a, x) => ({
+    increase: a.increase + x.increase,
+    decrease: a.decrease + x.decrease,
+    decreaseCash: a.decreaseCash + x.decreaseCash,
+    count: a.count + x.count,
+  }), { increase: 0, decrease: 0, decreaseCash: 0, count: 0 });
+
+  // 相手先・補助科目別。期累計のときは全月を足し合わせる。
+  const parties = {};
+  for (const x of target) {
+    for (const [name, v] of Object.entries(x.parties)) {
+      parties[name] ??= { increase: 0, decrease: 0 };
+      parties[name].increase += v.increase;
+      parties[name].decrease += v.decrease;
+    }
+  }
+  return { ...sum, parties, closing: target.at(-1).closing };
+}
+
+function balanceCard(b) {
+  const sc = scopeBalance(b);
+  const L = BALANCE_LABELS[b.name] ?? {
+    title: b.name,
+    inc: '増加', dec: '減少', bal: '残高',
+  };
+  if (!sc) return el(`<div class="panel"><h2>${esc(L.title)}</h2><div class="msg">この期間の動きはありません</div></div>`);
+
+  // 減少のうち、実際の入出金でないぶん（科目間の振替）を分けて示す
+  const transfer = sc.decrease - sc.decreaseCash;
+  const rows = Object.entries(sc.parties)
+    .map(([name, v]) => [name, v, v.increase - v.decrease])
+    .filter(([, v]) => v.increase || v.decrease)
+    .sort((a, b2) => Math.abs(b2[2]) - Math.abs(a[2]));
+
+  return el(`
+    <div class="panel">
+      <h2>${esc(L.title)}</h2>
+      <p class="note">${esc(L.bal)}を相手先ごとに確認できます</p>
+      <div class="summary" style="background:var(--brand-tint)">
+        <span>${esc(L.inc)} <b>${yen(sc.increase)}</b></span>
+        <span>${esc(L.dec)} <b>${yen(sc.decrease)}</b></span>
+        <span class="filterinfo">${esc(L.bal)} <b>${yen(sc.closing)}</b></span>
+      </div>
+      ${transfer > 0 ? `<p class="note" style="padding-left:0">${esc(L.dec)}のうち ${yen(transfer)} は入出金ではなく他の科目への振替です（資金の動きは ${yen(sc.decreaseCash)}）。</p>` : ''}
+      <table>
+        <thead><tr><th class="t-left">相手先・内訳</th><th>${esc(L.inc)}</th><th>${esc(L.dec)}</th><th>${esc(L.bal)}</th></tr></thead>
+        <tbody>${rows.length ? rows.map(([name, v, bal]) => `
+          <tr>
+            <td class="t-left">${esc(name)}</td>
+            <td>${v.increase ? yen(v.increase) : '—'}</td>
+            <td>${v.decrease ? yen(v.decrease) : '—'}</td>
+            <td class="${bal < 0 ? 'neg' : ''}">${yen(bal)}</td>
+          </tr>`).join('') : '<tr class="zero"><td colspan="4">内訳なし</td></tr>'}
+        </tbody>
+      </table>
+    </div>`);
+}
+
+function balancePanel(d) {
+  const host = document.createElement('div');
+  const list = d.balances ?? [];
+  if (!list.length) return host;
+
+  const featured = FEATURED.map((n) => list.find((b) => b.name === n)).filter(Boolean);
+  const others = list.filter((b) => !FEATURED.includes(b.name));
+
+  host.append(el(`<div class="panel" style="padding-bottom:4px">
+    <h2>債権・債務の状況</h2>
+    <p class="note">売掛金の回収、未払金の支払、役員借入金の精算をこの期間で見ています</p>
+  </div>`));
+
+  for (const b of featured) host.append(balanceCard(b));
+
+  if (others.length) {
+    const rows = others.map((b) => {
+      const sc = scopeBalance(b);
+      if (!sc) return '';
+      const L = BALANCE_LABELS[b.name] ?? { title: b.name };
+      return `<tr>
+        <td class="t-left">${esc(L.title ?? b.name)}</td>
+        <td class="t-left">${esc(b.category)}</td>
+        <td>${yen(sc.increase)}</td>
+        <td>${yen(sc.decrease)}</td>
+        <td>${yen(sc.closing)}</td>
+      </tr>`;
+    }).join('');
+    if (rows.trim()) {
+      host.append(el(`
+        <div class="panel"><h2>その他の債権・債務</h2>
+          <table>
+            <thead><tr><th class="t-left">科目</th><th class="t-left">分類</th><th>増加</th><th>減少</th><th>残高</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`));
+    }
+  }
+  return host;
+}
+
 /* ---- 画面の組み立て ---- */
 function scopeOf(d) {
   if (state.month === 'total') return { ...d.totals, label: `${d.period.label}累計` };
@@ -212,6 +330,9 @@ function render(root) {
   exp.append(breakdownChart(Object.entries(sc.expenseBreakdown), 'var(--series-2)', 'この期間の経費仕訳はまだありません'));
   cols.append(rev, exp);
   root.append(cols);
+
+  // 債権・債務の状況
+  root.append(balancePanel(d));
 
   // 承認状況
   const st = sc.byStatus;
