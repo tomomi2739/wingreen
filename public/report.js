@@ -1,6 +1,20 @@
 /** 月次レポート画面 */
 
-import { yen, esc, el, svgEl, hoverable, barPath, niceStep, api } from './common.js';
+import { yen, esc, ymd, el, svgEl, hoverable, barPath, niceStep, api } from './common.js';
+
+// 相手先をクリックしたときに出す仕訳の明細。期ごとに一度だけ取りに行く。
+let journalCache = { period: null, rows: null };
+async function journalRows(periodNo) {
+  if (journalCache.period === String(periodNo) && journalCache.rows) return journalCache.rows;
+  const json = await api(`/api/journal?period=${encodeURIComponent(periodNo)}`);
+  journalCache = { period: String(periodNo), rows: json.rows };
+  return json.rows;
+}
+
+/** APIが相手先をまとめるときと同じ規則でキーを決める */
+function partyKeyOf(row, side) {
+  return row[side].sub || row.payee || row.client || '（内訳なし）';
+}
 
 const state = { data: null, month: 'total', statusFilter: 'all', period: '' };
 
@@ -196,10 +210,10 @@ function balanceCard(b) {
     .filter(([, v]) => v.increase || v.decrease)
     .sort((a, b2) => Math.abs(b2[2]) - Math.abs(a[2]));
 
-  return el(`
+  const panel = el(`
     <div class="panel">
       <h2>${esc(L.title)}</h2>
-      <p class="note">${esc(L.bal)}を相手先ごとに確認できます</p>
+      <p class="note">${esc(L.bal)}を相手先ごとに確認できます。行を押すと個々の仕訳が開きます。</p>
       <div class="summary" style="background:var(--brand-tint)">
         <span>${esc(L.inc)} <b>${yen(sc.increase)}</b></span>
         <span>${esc(L.dec)} <b>${yen(sc.decrease)}</b></span>
@@ -209,7 +223,7 @@ function balanceCard(b) {
       <table>
         <thead><tr><th class="t-left">相手先・内訳</th><th>${esc(L.inc)}</th><th>${esc(L.dec)}</th><th>${esc(L.bal)}</th></tr></thead>
         <tbody>${rows.length ? rows.map(([name, v, bal]) => `
-          <tr>
+          <tr class="clickable" data-party="${esc(name)}" tabindex="0">
             <td class="t-left">${esc(name)}</td>
             <td>${v.increase ? yen(v.increase) : '—'}</td>
             <td>${v.decrease ? yen(v.decrease) : '—'}</td>
@@ -218,6 +232,49 @@ function balanceCard(b) {
         </tbody>
       </table>
     </div>`);
+
+  // 相手先の行を押すと、その内訳の仕訳を下に差し込む
+  for (const tr of panel.querySelectorAll('tr.clickable')) {
+    const party = tr.dataset.party;
+    const toggle = async () => {
+      const open = tr.nextElementSibling?.classList.contains('detail-row');
+      panel.querySelectorAll('tr.detail-row').forEach((x) => x.remove());
+      panel.querySelectorAll('tr.clickable').forEach((x) => x.classList.remove('selected'));
+      if (open) return;
+
+      tr.classList.add('selected');
+      const holder = el('<tr class="detail-row"><td colspan="4"><div class="msg">読み込み中…</div></td></tr>');
+      tr.after(holder);
+      try {
+        const all = await journalRows(b.periodNo);
+        const hits = all.filter((r) => {
+          const month = (r.date ?? '').slice(0, 7);
+          if (state.month !== 'total' && month !== state.month) return false;
+          return ['debit', 'credit'].some(
+            (side) => r[side].account === b.name && partyKeyOf(r, side) === party,
+          );
+        }).sort((x, y) => (x.date ?? '').localeCompare(y.date ?? ''));
+
+        holder.querySelector('td').innerHTML = hits.length ? `
+          <table>
+            <thead><tr><th>取引日</th><th class="t-left">摘要</th><th class="t-left">借方</th><th class="t-left">貸方</th><th>金額</th></tr></thead>
+            <tbody>${hits.map((r) => `
+              <tr>
+                <td>${ymd(r.date)}</td>
+                <td class="t-left">${esc(r.name || '—')}</td>
+                <td class="t-left">${esc(r.debit.account || '—')}${r.debit.sub ? `<span class="sub2">${esc(r.debit.sub)}</span>` : ''}</td>
+                <td class="t-left">${esc(r.credit.account || '—')}${r.credit.sub ? `<span class="sub2">${esc(r.credit.sub)}</span>` : ''}</td>
+                <td>${yen(r.gross)}</td>
+              </tr>`).join('')}</tbody>
+          </table>` : '<div class="msg">該当する仕訳が見つかりません</div>';
+      } catch (err) {
+        holder.querySelector('td').innerHTML = `<div class="msg err">読み込みに失敗しました: ${esc(err.message)}</div>`;
+      }
+    };
+    tr.onclick = toggle;
+    tr.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+  }
+  return panel;
 }
 
 function balancePanel(d) {
@@ -233,7 +290,7 @@ function balancePanel(d) {
     <p class="note">売掛金の回収、未払金の支払、役員借入金の精算をこの期間で見ています</p>
   </div>`));
 
-  for (const b of featured) host.append(balanceCard(b));
+  for (const b of featured) host.append(balanceCard({ ...b, periodNo: d.period.no }));
 
   if (others.length) {
     const rows = others.map((b) => {
