@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>証憑の登録 | WinGreen</title>
+<link rel="icon" href="/assets/logo.png">
+<link rel="stylesheet" href="/styles.css">
+<style>
+  /* 撮った写真をその場で送れるよう、この画面だけはスマホでも使える幅にする */
+  .wrap { max-width: 560px; }
+  .drop {
+    border: 2px dashed var(--border); border-radius: 14px; background: var(--surface-1);
+    padding: 34px 18px; text-align: center; cursor: pointer; display: block;
+  }
+  .drop:hover, .drop.over { border-color: var(--brand); background: var(--brand-tint); }
+  .drop .big { display: block; font-size: 15px; font-weight: 600; color: var(--brand); }
+  .drop .small { display: block; color: var(--text-muted); font-size: 12.5px; margin-top: 6px; line-height: 1.7; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; margin: 16px 0; }
+  .thumb { position: relative; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-1); }
+  .thumb img { width: 100%; height: 104px; object-fit: cover; display: block; }
+  .thumb .pdf { height: 104px; display: grid; place-items: center; color: var(--text-secondary); font-size: 12.5px; }
+  .thumb .cap { font-size: 10.5px; color: var(--text-muted); padding: 4px 6px; word-break: break-all; }
+  .thumb button {
+    position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%;
+    border: 0; background: rgba(0,0,0,.6); color: #fff; cursor: pointer; font-size: 13px; line-height: 1;
+  }
+  .thumb.done { outline: 2px solid var(--good); }
+  .thumb.fail { outline: 2px solid var(--critical); }
+  textarea {
+    width: 100%; font: inherit; color: var(--text-primary); background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; resize: vertical; min-height: 64px;
+  }
+  textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .send { width: 100%; padding: 13px; font-size: 15px; border-radius: 10px; margin-top: 14px; }
+  .lead { color: var(--text-secondary); font-size: 13px; margin: 0 0 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <img class="logo" src="/assets/logo.png" alt="">
+    <h1>証憑の登録</h1>
+  </div>
+
+  <p class="lead">レシート・請求書・支払明細書の写真やPDFを送ってください。内容の確認と仕訳は経理担当者が行います。</p>
+
+  <label class="drop" id="drop">
+    <span class="big">写真・PDFを選ぶ</span>
+    <span class="small">カメラで撮影／写真から選択／ファイルから選択　まとめて選べます</span>
+    <input type="file" id="file" accept="image/*,application/pdf" multiple hidden>
+  </label>
+
+  <div class="thumbs" id="thumbs"></div>
+
+  <div id="form" class="hidden">
+    <label for="memo" style="display:block;color:var(--text-secondary);font-size:13px;margin:4px 0 6px">メモ（任意）</label>
+    <textarea id="memo" placeholder="例）9月の打ち合わせ代、立替払い"></textarea>
+    <button class="btn primary send" id="send">送信する</button>
+  </div>
+
+  <div id="result" style="margin-top:16px"></div>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+// Vercelの関数は本文4.5MBまで。base64で約1.33倍になるので、送る前に縮める。
+const MAX_EDGE = 2000;
+const TARGET_BYTES = 2.6 * 1024 * 1024;
+
+let picked = [];
+
+/** 画像を長辺2000pxまで縮めてJPEGにする。読めない形式ならそのまま返す。 */
+async function shrink(file) {
+  if (!file.type.startsWith('image/')) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+
+    // 大きすぎる場合は画質を落として収める
+    for (const quality of [0.85, 0.7, 0.55]) {
+      const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
+      if (blob && blob.size <= TARGET_BYTES) {
+        return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+      }
+    }
+    return file;
+  } catch {
+    return file;   // HEICなど、この環境で開けない形式はそのまま送る
+  }
+}
+
+const readBase64 = (file) => new Promise((resolve, reject) => {
+  const fr = new FileReader();
+  fr.onload = () => resolve(String(fr.result).split(',')[1]);
+  fr.onerror = () => reject(new Error('ファイルを読めませんでした'));
+  fr.readAsDataURL(file);
+});
+
+function renderThumbs() {
+  $('thumbs').innerHTML = picked.map((p, i) => `
+    <div class="thumb" data-i="${i}">
+      ${p.preview ? `<img src="${p.preview}" alt="">` : '<div class="pdf">PDF</div>'}
+      <div class="cap">${esc(p.file.name)}</div>
+      <button type="button" aria-label="取り消す" data-remove="${i}">×</button>
+    </div>`).join('');
+  $('form').classList.toggle('hidden', picked.length === 0);
+}
+
+async function addFiles(list) {
+  for (const file of list) {
+    const shrunk = await shrink(file);
+    picked.push({
+      file: shrunk,
+      preview: shrunk.type.startsWith('image/') ? URL.createObjectURL(shrunk) : null,
+    });
+  }
+  renderThumbs();
+}
+
+$('file').onchange = (e) => { addFiles([...e.target.files]); e.target.value = ''; };
+$('thumbs').onclick = (e) => {
+  const i = e.target.dataset?.remove;
+  if (i == null) return;
+  picked.splice(Number(i), 1);
+  renderThumbs();
+};
+
+const drop = $('drop');
+for (const type of ['dragenter', 'dragover']) {
+  drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add('over'); });
+}
+for (const type of ['dragleave', 'drop']) {
+  drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.remove('over'); });
+}
+drop.addEventListener('drop', (e) => addFiles([...(e.dataTransfer?.files ?? [])]));
+
+$('send').onclick = async () => {
+  if (!picked.length) return;
+  const btn = $('send');
+  btn.disabled = true;
+  const memo = $('memo').value;
+  let ok = 0;
+  const failed = [];
+
+  for (const [i, p] of picked.entries()) {
+    btn.textContent = `送信中… (${i + 1}/${picked.length})`;
+    const card = $('thumbs').querySelector(`.thumb[data-i="${i}"]`);
+    try {
+      const res = await fetch('/api/intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: p.file.name,
+          contentType: p.file.type,
+          data: await readBase64(p.file),
+          memo,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      ok += 1;
+      card?.classList.add('done');
+    } catch (err) {
+      failed.push(`${p.file.name}: ${err.message}`);
+      card?.classList.add('fail');
+    }
+  }
+
+  $('result').innerHTML = `
+    ${ok ? `<div class="msg ok">${ok}件を受け付けました。ありがとうございます。</div>` : ''}
+    ${failed.length ? `<div class="msg err">送れなかったもの（${failed.length}件）<br>${failed.map(esc).join('<br>')}</div>` : ''}`;
+
+  // 送れたものは一覧から外し、失敗したものだけ残して送り直せるようにする
+  picked = picked.filter((_, i) => $('thumbs').querySelector(`.thumb[data-i="${i}"]`)?.classList.contains('fail'));
+  renderThumbs();
+  $('memo').value = '';
+  btn.disabled = false;
+  btn.textContent = '送信する';
+};
+</script>
+</body>
+</html>
