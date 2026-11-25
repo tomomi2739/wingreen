@@ -20,6 +20,7 @@ const ATTENTION_LABEL = {
   noStatus:      ['承認ステータス未設定', (r) => !r.status],
   rejected:      ['却下',         (r) => r.status === '却下'],
   noAccount:     ['勘定科目が未設定', (r) => !r.debit.account || !r.credit.account],
+  suspenseUnbalanced: ['諸口が相殺されていない', (r) => r.suspenseUnbalanced],
 };
 
 function visibleRows() {
@@ -183,6 +184,28 @@ function render(root) {
     }
   }
   root.append(attn);
+
+  // 諸口が相殺されていない日は、複合仕訳の片側を入れ忘れている可能性が高い。
+  // 金額がどの科目にも載らないまま残るので、件数だけでなく日付と差額を出す。
+  const unbalanced = d.suspense?.unbalancedDates ?? [];
+  if (unbalanced.length) {
+    root.append(el(`
+      <div class="msg err" style="margin-bottom:16px">
+        <b>諸口（${esc((d.suspense.accounts ?? []).join('、'))}）が相殺されていない日があります。</b>
+        複合仕訳の片側が抜けている可能性があります。
+        <table style="margin-top:10px">
+          <thead><tr><th>取引日</th><th>借方</th><th>貸方</th><th>差額</th><th>件数</th></tr></thead>
+          <tbody>${unbalanced.map((b) => `
+            <tr>
+              <td>${esc(b.date)}</td>
+              <td>${yen(b.debit)}</td>
+              <td>${yen(b.credit)}</td>
+              <td class="neg">${yen(b.diff)}</td>
+              <td>${b.count}</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>`));
+  }
 
   const rows = visibleRows();
   const sum = rows.reduce((a, r) => ({

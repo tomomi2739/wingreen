@@ -84,6 +84,38 @@ export default async function handler(req, res) {
     // 取引日の新しい順。日付が無い行は先頭に集めて気づけるようにする
     rows.sort((a, b) => (b.date ?? '9999').localeCompare(a.date ?? '9999'));
 
+    // --- 諸口の相殺チェック ---
+    // Notionは1行に借方・貸方を1つずつしか持てないため、複合仕訳は諸口科目で
+    // 受けて複数行に分ける。その諸口が借方・貸方で相殺されていない日は、
+    // 片側を入れ忘れている可能性が高い。
+    // 諸口は「分類が未設定の勘定科目」で判定する（名前に依存しない）。
+    const suspenseNames = new Set(
+      [...accounts.values()].filter((a) => !a['分類']).map((a) => a['科目名']).filter(Boolean),
+    );
+    const byDate = new Map();
+    for (const r of rows) {
+      const onDebit = suspenseNames.has(r.debit.account);
+      const onCredit = suspenseNames.has(r.credit.account);
+      if (!onDebit && !onCredit) continue;
+      const key = r.date ?? '(日付なし)';
+      const bucket = byDate.get(key) ?? { date: key, debit: 0, credit: 0, count: 0 };
+      if (onDebit) bucket.debit += r.gross;
+      if (onCredit) bucket.credit += r.gross;
+      bucket.count += 1;
+      byDate.set(key, bucket);
+    }
+    const unbalancedDates = [...byDate.values()]
+      .filter((b) => b.debit !== b.credit)
+      .map((b) => ({ ...b, diff: b.debit - b.credit }))
+      .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+    const unbalancedSet = new Set(unbalancedDates.map((b) => b.date));
+
+    for (const r of rows) {
+      const touches = suspenseNames.has(r.debit.account) || suspenseNames.has(r.credit.account);
+      r.isSuspense = touches;
+      r.suspenseUnbalanced = touches && unbalancedSet.has(r.date ?? '(日付なし)');
+    }
+
     // 画面の絞り込みに使う選択肢
     const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort();
 
@@ -110,6 +142,11 @@ export default async function handler(req, res) {
         noStatus: rows.filter((r) => !r.status).length,
         rejected: rows.filter((r) => r.status === '却下').length,
         noAccount: rows.filter((r) => !r.debit.account || !r.credit.account).length,
+        suspenseUnbalanced: rows.filter((r) => r.suspenseUnbalanced).length,
+      },
+      suspense: {
+        accounts: [...suspenseNames],
+        unbalancedDates,
       },
       generatedAt: new Date().toISOString(),
     });
