@@ -51,6 +51,13 @@
     font-size: 12.5px; color: var(--text-primary); line-height: 1.75; margin: 10px 0 0;
   }
   .tip b { color: var(--brand); }
+  /* 送信後、そのまま次のレシートに取りかかれるようにする */
+  .again { width: 100%; padding: 15px; font-size: 16px; border-radius: 10px; margin-top: 12px; }
+  .again-note {
+    font-size: 12.5px; color: var(--text-secondary); line-height: 1.7;
+    margin: 8px 0 0; text-align: center;
+  }
+  .tally { font-size: 12.5px; color: var(--text-muted); margin: 6px 0 0; text-align: center; }
 </style>
 </head>
 <body>
@@ -75,7 +82,7 @@
 
   <p class="tip">
     <b>レシートは1枚ずつ撮影して送ってください。</b><br>
-    1枚の写真に複数のレシートが写っていると、金額や日付を正しく読み取れません。<br>
+    1枚の写真に複数のレシートが写っていると、金額や日付を正しく読み取れない場合があります。<br>
     長いレシートは、全体が入るように真上から撮ってください。
   </p>
 
@@ -100,6 +107,8 @@ const TARGET_BYTES = 2.6 * 1024 * 1024;
 
 let picked = [];
 let method = null;
+let methodLabels = {};   // key → 画面に出す名前。送信後の案内で使う
+let sentTotal = 0;       // この画面を開いてから送れた件数
 
 // 支払方法はNotionの科目に紐づくので、設定ごとサーバーから取る
 async function loadMethods() {
@@ -109,6 +118,7 @@ async function loadMethods() {
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
 
+    methodLabels = Object.fromEntries(json.methods.map((m) => [m.key, m.label]));
     host.innerHTML = json.methods.map((m) => `
       <button type="button" data-key="${esc(m.key)}" aria-pressed="false">
         <span class="name">${esc(m.label)}</span>
@@ -181,6 +191,7 @@ function renderThumbs() {
 }
 
 async function addFiles(list) {
+  $('result').innerHTML = '';   // 前回の結果が残ったままにならないようにする
   for (const file of list) {
     const shrunk = await shrink(file);
     picked.push({
@@ -241,15 +252,31 @@ $('send').onclick = async () => {
     }
   }
 
+  sentTotal += ok;
+
+  // 支払方法は選び直さなくて済むよう残すので、何が選ばれているか見せておく
+  const keeping = methodLabels[method] ?? '';
   $('result').innerHTML = `
     ${ok ? `<div class="msg ok">${ok}件を受け付けました。ありがとうございます。</div>` : ''}
-    ${failed.length ? `<div class="msg err">送れなかったもの（${failed.length}件）<br>${failed.map(esc).join('<br>')}</div>` : ''}`;
+    ${failed.length ? `<div class="msg err">送れなかったもの（${failed.length}件）<br>${failed.map(esc).join('<br>')}</div>` : ''}
+    ${ok ? `
+      <button class="btn primary again" id="again" type="button">続けて次のレシートを送る</button>
+      <p class="again-note">
+        支払方法は<b>${esc(keeping)}</b>のままです。<br>
+        違う場合は上の「1. 支払方法」で選び直してください。
+      </p>
+      <p class="tally">この画面を開いてから ${sentTotal}件 送信しました</p>` : ''}`;
 
   // 送れたものは一覧から外し、失敗したものだけ残して送り直せるようにする
   picked = picked.filter((_, i) => $('thumbs').querySelector(`.thumb[data-i="${i}"]`)?.classList.contains('fail'));
   renderThumbs();
   $('memo').value = '';
   updateSendState();
+
+  // 押したらそのままカメラ／写真選択が開くので、1枚ずつ連続して送れる
+  $('again')?.addEventListener('click', () => $('file').click());
+
+  $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
 
 loadMethods();
