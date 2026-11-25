@@ -34,6 +34,23 @@
   textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   .send { width: 100%; padding: 13px; font-size: 15px; border-radius: 10px; margin-top: 14px; }
   .lead { color: var(--text-secondary); font-size: 13px; margin: 0 0 18px; }
+  .step { font-size: 13px; font-weight: 600; margin: 22px 0 8px; padding-left: 9px; border-left: 3px solid var(--brand); }
+  .methods { display: grid; gap: 8px; }
+  .methods button {
+    font: inherit; text-align: left; cursor: pointer; padding: 13px 15px;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); color: var(--text-primary);
+  }
+  .methods button:hover { border-color: var(--brand); background: var(--brand-tint); }
+  .methods button[aria-pressed="true"] {
+    border-color: var(--brand); background: var(--brand); color: var(--on-brand); font-weight: 600;
+  }
+  .methods .name { display: block; font-size: 15px; }
+  .methods .hint { display: block; font-size: 12px; opacity: .75; margin-top: 2px; }
+  .tip {
+    background: var(--brand-tint); border-radius: 10px; padding: 11px 13px;
+    font-size: 12.5px; color: var(--text-primary); line-height: 1.75; margin: 10px 0 0;
+  }
+  .tip b { color: var(--brand); }
 </style>
 </head>
 <body>
@@ -45,17 +62,28 @@
 
   <p class="lead">レシート・請求書・支払明細書の写真やPDFを送ってください。内容の確認と仕訳は経理担当者が行います。</p>
 
+  <div class="step">1. 支払方法を選んでください</div>
+  <div class="methods" id="methods"><div class="msg">読み込み中…</div></div>
+
+  <div class="step">2. 写真・PDFを選んでください</div>
+
   <label class="drop" id="drop">
     <span class="big">写真・PDFを選ぶ</span>
-    <span class="small">カメラで撮影／写真から選択／ファイルから選択　まとめて選べます</span>
+    <span class="small">カメラで撮影／写真から選択／ファイルから選択</span>
     <input type="file" id="file" accept="image/*,application/pdf" multiple hidden>
   </label>
+
+  <p class="tip">
+    <b>レシートは1枚ずつ撮影して送ってください。</b><br>
+    1枚の写真に複数のレシートが写っていると、金額や日付を正しく読み取れません。<br>
+    長いレシートは、全体が入るように真上から撮ってください。
+  </p>
 
   <div class="thumbs" id="thumbs"></div>
 
   <div id="form" class="hidden">
     <label for="memo" style="display:block;color:var(--text-secondary);font-size:13px;margin:4px 0 6px">メモ（任意）</label>
-    <textarea id="memo" placeholder="例）9月の打ち合わせ代、立替払い"></textarea>
+    <textarea id="memo" placeholder="例）9月の打ち合わせ代"></textarea>
     <button class="btn primary send" id="send">送信する</button>
   </div>
 
@@ -71,6 +99,42 @@ const MAX_EDGE = 2000;
 const TARGET_BYTES = 2.6 * 1024 * 1024;
 
 let picked = [];
+let method = null;
+
+// 支払方法はNotionの科目に紐づくので、設定ごとサーバーから取る
+async function loadMethods() {
+  const host = $('methods');
+  try {
+    const res = await fetch('/api/intake');
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+
+    host.innerHTML = json.methods.map((m) => `
+      <button type="button" data-key="${esc(m.key)}" aria-pressed="false">
+        <span class="name">${esc(m.label)}</span>
+        ${m.hint ? `<span class="hint">${esc(m.hint)}</span>` : ''}
+      </button>`).join('');
+
+    host.onclick = (e) => {
+      const btn = e.target.closest('button[data-key]');
+      if (!btn) return;
+      method = btn.dataset.key;
+      host.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+      updateSendState();
+    };
+  } catch (err) {
+    host.innerHTML = `<div class="msg err">支払方法を読み込めませんでした: ${esc(err.message)}</div>`;
+  }
+}
+
+/** 支払方法と写真の両方が揃うまで送信できないようにする */
+function updateSendState() {
+  const ready = Boolean(method) && picked.length > 0;
+  $('form').classList.toggle('hidden', picked.length === 0);
+  const btn = $('send');
+  btn.disabled = !ready;
+  btn.textContent = picked.length && !method ? '支払方法を選んでください' : '送信する';
+}
 
 /** 画像を長辺2000pxまで縮めてJPEGにする。読めない形式ならそのまま返す。 */
 async function shrink(file) {
@@ -113,7 +177,7 @@ function renderThumbs() {
       <div class="cap">${esc(p.file.name)}</div>
       <button type="button" aria-label="取り消す" data-remove="${i}">×</button>
     </div>`).join('');
-  $('form').classList.toggle('hidden', picked.length === 0);
+  updateSendState();
 }
 
 async function addFiles(list) {
@@ -164,6 +228,7 @@ $('send').onclick = async () => {
           contentType: p.file.type,
           data: await readBase64(p.file),
           memo,
+          method,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -184,9 +249,10 @@ $('send').onclick = async () => {
   picked = picked.filter((_, i) => $('thumbs').querySelector(`.thumb[data-i="${i}"]`)?.classList.contains('fail'));
   renderThumbs();
   $('memo').value = '';
-  btn.disabled = false;
-  btn.textContent = '送信する';
+  updateSendState();
 };
+
+loadMethods();
 </script>
 </body>
 </html>

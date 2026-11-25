@@ -14,6 +14,16 @@ const state = {
   selectedId: null,
 };
 
+// 投稿時に摘要へ書き込んでいる読み取り結果は量が多く、一覧では邪魔になる。
+// 投稿者のメモと読み取り結果を分けて、一覧にはメモだけを出す。
+const OCR_MARKER = '【読み取り】';
+function splitMemo(memo) {
+  const text = String(memo ?? '');
+  const at = text.indexOf(OCR_MARKER);
+  if (at === -1) return { note: text.trim(), ocr: '' };
+  return { note: text.slice(0, at).trim(), ocr: text.slice(at + OCR_MARKER.length).trim() };
+}
+
 const ATTENTION_LABEL = {
   noDate:        ['取引日なし',   (r) => !r.date],
   noTaxCategory: ['税区分が未入力', (r) => !r.taxCategory],
@@ -106,7 +116,8 @@ function renderDetail(host, row) {
         <dt>税抜金額</dt><dd>${yen(row.net)}</dd>
         <dt>消費税額</dt><dd>${yen(row.tax)}</dd>
         <dt>仕入税額控除</dt><dd>${yen(row.deductible)}</dd>
-        <dt>摘要</dt><dd>${esc(row.memo) || '—'}</dd>
+        <dt>摘要</dt><dd>${esc(splitMemo(row.memo).note) || '—'}</dd>
+        ${splitMemo(row.memo).ocr ? `<dt>読み取り結果</dt><dd><details><summary>表示する</summary><pre class="ocr">${esc(splitMemo(row.memo).ocr)}</pre></details></dd>` : ''}
         <dt>支払先</dt><dd>${esc(row.payee) || '—'}</dd>
         <dt>取引先</dt><dd>${esc(row.client) || '—'}</dd>
         <dt>請求書</dt><dd>${esc(row.invoices) || '—'}</dd>
@@ -278,7 +289,7 @@ function render(root) {
   for (const r of rows) {
     const tr = el(`<tr class="clickable${r.id === state.selectedId ? ' selected' : ''}" tabindex="0">
       <td>${r.date ? ymd(r.date) : '<span class="warnchip">日付なし</span>'}</td>
-      <td class="t-left">${esc(r.name || '—')}${r.memo ? `<span class="sub2">${esc(r.memo)}</span>` : ''}</td>
+      <td class="t-left">${esc(r.name || '—')}${splitMemo(r.memo).note ? `<span class="sub2">${esc(splitMemo(r.memo).note)}</span>` : ''}</td>
       ${entryCell(r.debit, 'col-debit')}
       ${entryCell(r.credit, 'col-credit')}
       <td class="t-left">${r.taxCategory ? esc(r.taxCategory) : '<span class="warnchip">未入力</span>'}</td>
