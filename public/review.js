@@ -12,6 +12,22 @@ const opt = (list, selected, placeholder) =>
     return `<option value="${esc(value)}"${value === selected ? ' selected' : ''}>${esc(label)}</option>`;
   }).join('');
 
+// よく使う順に並べ替えた選択肢。実績のあるものを上のグループにまとめる。
+const FREQUENT_MAX = 8;
+function optByUsage(list, selected, placeholder, usageMap = {}) {
+  const render = (xs) => xs.map((x) =>
+    `<option value="${esc(x.id)}"${x.id === selected ? ' selected' : ''}>${esc(x.name)}</option>`).join('');
+
+  const used = list.filter((x) => (usageMap[x.id] ?? 0) > 0)
+    .sort((a, b) => (usageMap[b.id] ?? 0) - (usageMap[a.id] ?? 0));
+  const frequent = used.slice(0, FREQUENT_MAX);
+  const rest = [...used.slice(FREQUENT_MAX), ...list.filter((x) => !(usageMap[x.id] > 0))];
+
+  return `<option value="">${esc(placeholder)}</option>`
+    + (frequent.length ? `<optgroup label="よく使う">${render(frequent)}</optgroup>` : '')
+    + (rest.length ? `<optgroup label="その他">${render(rest)}</optgroup>` : '');
+}
+
 /** 選んだ勘定科目に属する補助科目だけを返す */
 function subsFor(accountId) {
   if (!accountId) return [];
@@ -35,6 +51,7 @@ function attachment(files) {
 
 function card(item) {
   const o = state.data.options;
+  const u = state.data.usage ?? {};
   const node = el(`
     <div class="panel review" data-page="${esc(item.pageId)}">
       <h2>${esc(item.name || '(名前なし)')}</h2>
@@ -55,12 +72,12 @@ function card(item) {
         <label>名前<input type="text" name="name" value="${esc(item.name)}"></label>
         <label>金額（税込）<input type="number" name="amount" value="${item.amount ?? ''}"></label>
         <label>税区分<select name="taxCategory">${opt(o.taxCategories, item.taxCategory, '未設定')}</select></label>
-        <label>借方勘定科目<select name="debitAccountId">${opt(o.accounts, item.debitAccountId, '選択してください')}</select></label>
+        <label>借方勘定科目<select name="debitAccountId">${optByUsage(o.accounts, item.debitAccountId, '選択してください', u.debitAccounts)}</select></label>
         <label>借方補助科目<select name="debitSubId"></select></label>
-        <label>貸方勘定科目<select name="creditAccountId">${opt(o.accounts, item.creditAccountId, '選択してください')}</select></label>
+        <label>貸方勘定科目<select name="creditAccountId">${optByUsage(o.accounts, item.creditAccountId, '選択してください', u.creditAccounts)}</select></label>
         <label>貸方補助科目<select name="creditSubId"></select></label>
-        <label>支払先<select name="payeeId">${opt(o.payees, item.payeeId, 'なし')}</select></label>
-        <label>取引先<select name="clientId">${opt(o.clients, item.clientId, 'なし')}</select></label>
+        <label>支払先<select name="payeeId">${optByUsage(o.payees, item.payeeId, 'なし', u.payees)}</select></label>
+        <label>取引先<select name="clientId">${optByUsage(o.clients, item.clientId, 'なし', u.clients)}</select></label>
       </div>
 
       <div class="actions">
@@ -71,15 +88,17 @@ function card(item) {
     </div>`);
 
   // 勘定科目を選ぶと、その科目の補助科目だけに入れ替える
-  const bind = (accountName, subName, selectedSubId) => {
+  const bind = (accountName, subName, selectedSubId, subUsage) => {
     const acc = node.querySelector(`[name="${accountName}"]`);
     const sub = node.querySelector(`[name="${subName}"]`);
-    const fill = (keep) => { sub.innerHTML = opt(subsFor(acc.value), keep ?? '', 'なし'); };
+    const fill = (keep) => {
+      sub.innerHTML = optByUsage(subsFor(acc.value), keep ?? '', 'なし', subUsage);
+    };
     fill(selectedSubId);
     acc.onchange = () => fill('');
   };
-  bind('debitAccountId', 'debitSubId', item.debitSubId);
-  bind('creditAccountId', 'creditSubId', item.creditSubId);
+  bind('debitAccountId', 'debitSubId', item.debitSubId, u.debitSubs);
+  bind('creditAccountId', 'creditSubId', item.creditSubId, u.creditSubs);
 
   const note = node.querySelector('[data-role="note"]');
   const value = (n) => node.querySelector(`[name="${n}"]`).value;

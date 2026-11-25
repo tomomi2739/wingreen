@@ -57,16 +57,36 @@ export default async function handler(req, res) {
     }
 
     /* ---- 一覧とマスタ ---- */
-    const [journalSchema, pending, accountPages, subPages, payeePages, clientPages] = await Promise.all([
+    // 全仕訳も読む。選択肢を「よく使う順」に並べるための実績集計に使う。
+    const [journalSchema, allJournals, accountPages, subPages, payeePages, clientPages] = await Promise.all([
       retrieveDatabase(journalDb),
-      queryDatabaseAll(journalDb, {
-        filter: { property: '承認ステータス', select: { equals: PENDING } },
-      }),
+      queryDatabaseAll(journalDb),
       queryDatabaseAll(masters.accounts.id),
       queryDatabaseAll(masters.subAccounts.id),
       queryDatabaseAll(masters.payees.id),
       queryDatabaseAll(masters.clients.id),
     ]);
+
+    const journals = allJournals.map(flattenPage);
+    const pending = journals.filter((j) => j['承認ステータス'] === PENDING);
+
+    // 借方と貸方では使う科目が違うので、別々に数える
+    const usage = {
+      debitAccounts: {}, creditAccounts: {},
+      debitSubs: {}, creditSubs: {},
+      payees: {}, clients: {},
+    };
+    const bump = (bucket, id) => { if (id) bucket[id] = (bucket[id] ?? 0) + 1; };
+    for (const j of journals) {
+      // 仮登録はまだ科目が入っていないので、実績としては数えない
+      if (j['承認ステータス'] === PENDING) continue;
+      bump(usage.debitAccounts, (j['借方勘定科目'] ?? [])[0]);
+      bump(usage.creditAccounts, (j['貸方勘定科目'] ?? [])[0]);
+      bump(usage.debitSubs, (j['借方補助科目'] ?? [])[0]);
+      bump(usage.creditSubs, (j['貸方補助科目'] ?? [])[0]);
+      bump(usage.payees, (j['支払先マスタ WG'] ?? [])[0]);
+      bump(usage.clients, (j['取引先マスタ WG'] ?? [])[0]);
+    }
 
     const accounts = accountPages.map(flattenPage).map((a) => ({
       id: a._id, name: a['科目名'], category: a['分類'] ?? '', type: a['科目タイプ'] ?? '',
@@ -79,7 +99,7 @@ export default async function handler(req, res) {
       active: s['有効'] !== false,
     }));
 
-    const items = pending.map(flattenPage).map((j) => ({
+    const items = pending.map((j) => ({
       pageId: j._id,
       date: j['取引日'] ?? '',
       name: j['名前'] ?? '',
@@ -112,6 +132,8 @@ export default async function handler(req, res) {
         // 選択肢はNotionの定義をそのまま使う（こちらで決め打ちしない）
         taxCategories: (journalSchema.properties['税区分']?.select?.options ?? []).map((o) => o.name),
       },
+      // 選択肢を「よく使う順」に並べるための実績。件数が多いものほど上に出す。
+      usage,
       ocrEnabled: Boolean(process.env.GEMINI_API_KEY_WG),
     });
   } catch (err) {
