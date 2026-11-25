@@ -87,10 +87,14 @@ export default async function handler(req, res) {
     }
 
     // 読み取り。失敗しても投稿は続ける。
-    const read = await readDocument(data, contentType).catch((err) => {
+    // 失敗したことを黙って空欄にすると、経理が「金額が無い行」を見ても
+    // 読めなかったのか元から書いていないのか分からないので、理由を摘要に残す。
+    const result = await readDocument(data, contentType).catch((err) => {
       console.warn(`読み取りに失敗: ${err.message}`);
-      return null;
+      return { ok: false, reason: '読み取り処理が異常終了' };
     });
+    const read = result.ok ? result.data : null;
+    if (!read) console.warn(`読み取りなし: ${result.reason}`);
 
     const date = read?.date || today();
     const period = getCurrentPeriod(new Date(date));
@@ -102,6 +106,8 @@ export default async function handler(req, res) {
     const noteParts = [
       String(memo ?? '').trim(),
       read?.invoiceRegistrationNumber ? `登録番号: ${read.invoiceRegistrationNumber}` : '',
+      // 読めなかった行は、経理確認の画面で見てすぐ分かるようにしておく
+      read ? '' : `※ 自動読み取りなし（${result.reason}）。日付・金額は画像を見て入れてください`,
       read?.text ? `【読み取り】\n${read.text}` : '',
     ].filter(Boolean);
 
