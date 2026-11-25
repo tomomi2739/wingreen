@@ -12,5 +12,8 @@ node_modules/
 # Notionスキーマのダンプ（確認用の一時出力。正式なDB IDは config/periods.json で管理）
 notion-schema.json
 
+# Claude Code のローカル設定（個人の許可設定。共有しない）
+.claude/settings.local.json
+
 # OS
 .DS_Store
